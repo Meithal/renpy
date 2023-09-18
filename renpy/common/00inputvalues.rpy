@@ -150,6 +150,7 @@ init -1510 python:
 
             self.default = default
             self.returnable = returnable
+            self.disable_on_enter = disable_on_enter
 
         def get_text(self):
             return _get_field(store, self.variable, "variable")
@@ -187,6 +188,7 @@ init -1510 python:
 
             self.default = default
             self.returnable = returnable
+            self.disable_on_enter = disable_on_enter
 
             self.screen = renpy.current_screen()
 
@@ -230,6 +232,7 @@ init -1510 python:
 
             self.default = default
             self.returnable = returnable
+            self.disable_on_enter = disable_on_enter
 
         def get_text(self):
             return _get_field(self.object, self.field, "field")
@@ -266,6 +269,7 @@ init -1510 python:
 
             self.default = default
             self.returnable = returnable
+            self.disable_on_enter = disable_on_enter
 
         def get_text(self):
             return self.dict[self.key]
