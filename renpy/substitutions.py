@@ -225,7 +225,11 @@ def fstring_formatter(s, kwargs):
         if sra:
             sra = "!" + "".join(sra)
 
-        value = eval("".join(('f"{', pre, (sra or ""), suf, '}"')), {}, kwargs) # type: ignore
+        if '"' in pre:
+            begin, end = "f'{", "}'"
+        else:
+            begin, end = 'f"{', '}"'
+        value = eval("".join((begin, pre, (sra or ""), suf, end)), {}, kwargs) # type: ignore
 
         return additional_conversion(value, conversion)
 
