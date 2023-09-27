@@ -216,8 +216,13 @@ def fstring_formatter(s, kwargs):
         # bangs : the bang (if any) and the characters going with it
         # suf : potential whitespace, the colon (if any), and the characters going with it
 
+        if '"' in pre:
+            begin, end = "f'{", "}'"
+        else:
+            begin, end = 'f"{', '}"'
+
         if not bangs:
-            return eval("f\"{" + pre + suf + "}\"", {}, kwargs)
+            return eval("".join((begin, pre, suf, end)), {}, kwargs)
 
         conversion = set(bangs[1:]) # the first character is always a bang
         sra = conversion - set("tiqulc")
@@ -225,10 +230,6 @@ def fstring_formatter(s, kwargs):
         if sra:
             sra = "!" + "".join(sra)
 
-        if '"' in pre:
-            begin, end = "f'{", "}'"
-        else:
-            begin, end = 'f"{', '}"'
         value = eval("".join((begin, pre, (sra or ""), suf, end)), {}, kwargs) # type: ignore
 
         return additional_conversion(value, conversion)
