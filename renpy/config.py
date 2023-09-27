@@ -1262,6 +1262,9 @@ open_file_encoding = os.environ.get("RENPY_OPEN_FILE_ENCODING", False)
 # A callback that can modify the gl2 window flags.
 gl2_modify_window_flags = None
 
+# Is substitution/interpolation done in f-string syntax rather than .format syntax ?
+fstring_substitute = False
+
 # Should the skip key (ctrl) function during text?
 skip_during_text = False
 

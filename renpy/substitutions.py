@@ -30,6 +30,7 @@ from renpy.compat import PY2, basestring, bchr, bord, chr, open, pystr, range, r
 import renpy
 import string
 import os
+import re
 
 update_translations = "RENPY_UPDATE_TRANSLATIONS" in os.environ
 
@@ -197,36 +198,63 @@ class Formatter(string.Formatter):
         if not conversion:
             return value
 
-        # All conversion symbols below assume we have a string.
+        # All conversion symbols in additional_conversion assume we have a string.
         if not isinstance(value, basestring):
             value = str(value)
 
-        if "t" in conversion:
-            value = renpy.translation.translate_string(value)
-
-        if "i" in conversion:
-            try:
-                value = self.vformat(value, (), kwargs)
-            except RuntimeError: # PY3 RecursionError
-                raise ValueError("Substitution {!r} refers to itself in a loop.".format(value))
-
-        if "q" in conversion:
-            value = value.replace("{", "{{")
-
-        if "u" in conversion:
-            value = value.upper()
-
-        if "l" in conversion:
-            value = value.lower()
-
-        if "c" in conversion and value:
-            value = value[0].upper() + value[1:]
-
-        return value
+        return additional_conversion(value, conversion)
 
 
 # The instance of Formatter we use.
 formatter = Formatter()
+
+
+def fstring_formatter(s, kwargs):
+    def replacement(match):
+        pre, bangs, suf = match.group(1, 2, 3)
+        # pre : the part before the first bang
+        # bangs : the bang (if any) and the characters going with it
+        # suf : potential whitespace, the colon (if any), and the characters going with it
+
+        if not bangs:
+            return eval("f\"{" + pre + suf + "}\"", {}, kwargs)
+
+        conversion = set(bangs[1:]) # the first character is always a bang
+        sra = conversion - set("tiqulc")
+        conversion = conversion - sra
+        if sra:
+            sra = "!" + "".join(sra)
+
+        value = eval("".join(('f"{', pre, (sra or ""), suf, '}"')), {}, kwargs) # type: ignore
+
+        return additional_conversion(value, conversion)
+
+    return re.sub(r"\[([^!:\n]+)((?:![^!:\s]+)?)(\s*(?::[^!:\n]+)?)\]", replacement, s)
+
+
+def additional_conversion(value, conversion):
+    if "t" in conversion:
+        value = renpy.translation.translate_string(value)
+
+    if "i" in conversion:
+        try:
+            value = substitute(value, translate=False)[0]
+        except RuntimeError: # PY3 RecursionError
+            raise ValueError("Substitution {!r} refers to itself in a loop.".format(value))
+
+    if "q" in conversion:
+        value = value.replace("{", "{{")
+
+    if "u" in conversion:
+        value = value.upper()
+
+    if "l" in conversion:
+        value = value.lower()
+
+    if "c" in conversion and value:
+        value = value[0].upper() + value[1:]
+
+    return value
 
 
 class MultipleDict(object):
@@ -281,7 +309,10 @@ def substitute(s, scope=None, force=False, translate=True):
         kwargs = renpy.store.__dict__ # @UndefinedVariable
 
     try:
-        s = formatter.vformat(s, (), kwargs) # type: ignore
+        if renpy.config.fstring_substitute:
+            s = fstring_formatter(s, kwargs)
+        else:
+            s = formatter.vformat(s, (), kwargs) # type: ignore
     except Exception:
         if renpy.display.predict.predicting: # @UndefinedVariable
             return " ", True
