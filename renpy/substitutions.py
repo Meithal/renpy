@@ -216,6 +216,7 @@ sra_ref = dict(
     r=114,
     a=97,
 )
+allowed_conversions = frozenset("tiqulc") | sra_ref.keys()
 
 def fstring_formatter(s, kwargs):
     def ast_replacement(match):
@@ -242,6 +243,8 @@ def fstring_formatter(s, kwargs):
 
             if not bangs:
                 raise Exception("Conversion specifier can't be empty.")
+            if bangs - allowed_conversions:
+                raise Exception("Unknown symbols in conversion specifier, only \"sratiqulc\" are allowed.")
 
             sra_flags = bangs.intersection("sra")
             if sra_flags:
@@ -265,7 +268,7 @@ def fstring_formatter(s, kwargs):
             return additional_conversion(value, bangs)
         return value
 
-    return re.sub(r"\[([^!:\n]+)((?:![^:\s]+)?)\s*(:[^!:\n]+)?\]", ast_replacement, s)
+    return re.sub(r"\[([^!:\n]+)((?:![!a-z]+)?)\s*(:[^!:\n]+)?\]", ast_replacement, s)
 
     def patchwork_replacement(match):
         pre, bangs, suf = match.group(1, 2, 3)
