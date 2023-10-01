@@ -28,6 +28,7 @@ from renpy.compat import PY2, basestring, bchr, bord, chr, open, pystr, range, r
 
 
 import renpy
+import ast
 import string
 import os
 import re
@@ -209,8 +210,64 @@ class Formatter(string.Formatter):
 formatter = Formatter()
 
 
+# https://docs.python.org/3/library/ast.html#ast.FormattedValue
+sra_ref = dict(
+    s=115,
+    r=114,
+    a=97,
+)
+
 def fstring_formatter(s, kwargs):
-    def replacement(match):
+    def ast_replacement(match):
+        expr, bangs, suf = match.group(1, 2, 3)
+        # expr : the part before the first bang
+        # bangs : the bang (if any) and the characters going with it
+        # suf : the colon (if any), and the characters going with it
+
+        joinedstr_values = []
+
+        if "=" in expr:
+            joinedstr_values.append(ast.Constant(expr))
+            expr = expr.partition("=")[0].strip()
+
+        formaval_kw = {
+            "value" : ast.parse(expr, mode="eval").body,
+            "conversion" : -1,
+            "format_spec" : None,
+        }
+
+        if bangs:
+            bangs = set(bangs)
+            bangs.discard("!")
+
+            if not bangs:
+                raise Exception("Conversion specifier can't be empty.")
+
+            sra_flags = bangs.intersection("sra")
+            if sra_flags:
+                bangs -= sra_flags
+                sra_flag = sra_flags.pop()
+                if sra_flags:
+                    raise Exception("Only one of s, r, a flags can be used.")
+
+                formaval_kw["conversion"] = sra_ref[sra_flag]
+
+        if suf:
+            formaval_kw["format_spec"] = ast.JoinedStr([ast.Constant(suf)])
+
+        joinedstr_values.append(ast.FormattedValue(**formaval_kw))
+
+        astree = ast.Expression(ast.JoinedStr(joinedstr_values))
+        ast.fix_missing_locations(astree)
+        value = eval(compile(astree, "<interpolation>", "eval"), {}, kwargs)
+
+        if bangs:
+            return additional_conversion(value, bangs)
+        return value
+
+    return re.sub(r"\[([^!:\n]+)((?:![^:\s]+)?)\s*(:[^!:\n]+)?\]", ast_replacement, s)
+
+    def patchwork_replacement(match):
         pre, bangs, suf = match.group(1, 2, 3)
         # pre : the part before the first bang
         # bangs : the bang (if any) and the characters going with it
@@ -234,7 +291,7 @@ def fstring_formatter(s, kwargs):
 
         return additional_conversion(value, conversion)
 
-    return re.sub(r"\[([^!:\n]+)((?:![^!:\s]+)?)(\s*(?::[^!:\n]+)?)\]", replacement, s)
+    return re.sub(r"\[([^!:\n]+)((?:![^!:\s]+)?)(\s*(?::[^!:\n]+)?)\]", patchwork_replacement, s)
 
 
 def additional_conversion(value, conversion):
